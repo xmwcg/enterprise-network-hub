@@ -1,0 +1,28 @@
+main:
+  push:
+    - name: sync-to-github
+      docker:
+        image: alpine/git
+      imports:
+        - https://cnb.cool/aibak.site/cnb-github-migration-guide/-/blob/main/secrets.yml
+      stages:
+        - name: push
+          script: |
+            REPO_NAME=${CNB_REPO_SLUG##*/}
+            git remote add github https://${GH_TOKEN}@github.com/xmwcg/${REPO_NAME}.git || true
+            git push github main --force
+  "crontab: 0 */4 * * *":
+    - name: sync-from-github
+      docker:
+        image: alpine/git
+      imports:
+        - https://cnb.cool/aibak.site/cnb-github-migration-guide/-/blob/main/secrets.yml
+      stages:
+        - name: fetch-and-merge
+          script: |
+            REPO_NAME=${CNB_REPO_SLUG##*/}
+            git remote add github https://${GH_TOKEN}@github.com/xmwcg/${REPO_NAME}.git || true
+            git fetch github main
+            git merge FETCH_HEAD -m "sync: merge from github" || true
+            git push origin main
+
