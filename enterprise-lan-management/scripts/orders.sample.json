@@ -1,0 +1,5 @@
+{
+  "ORD-2026-0001": { "Company": "示例科技有限公司", "Edition": "Pro", "MaxDevices": 50, "Days": 365, "Features": "interconnect,list,inventory,netpolicy,netcheck,remotemgmt" },
+  "ORD-2026-0002": { "Company": "试用客户", "Edition": "Trial", "MaxDevices": 25, "Days": 30, "Features": "interconnect,list,inventory,netpolicy,netcheck,remotemgmt" },
+  "ORD-2026-0003": { "Company": "集团客户", "Edition": "Enterprise", "MaxDevices": 0, "Days": 365, "Features": "interconnect,list,inventory,netpolicy,netcheck,remotemgmt,support" }
+}

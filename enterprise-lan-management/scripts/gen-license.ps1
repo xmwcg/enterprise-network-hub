@@ -64,6 +64,7 @@ if (-not (Test-Path $PrivateKeyFile)) {
 if ($MaxDevices -eq 0 -and $Edition -ne 'Enterprise') { $MaxDevices = $edDefs[$Edition] }
 $features = if ($Features) { @($Features -split ',') } else { $edFeatures[$Edition] }
 $claims = [ordered]@{
+    Id         = [guid]::NewGuid().ToString()
     Company    = $Company
     Edition    = $Edition
     MaxDevices = $MaxDevices
@@ -85,3 +86,4 @@ $out = [ordered]@{
 $out | ConvertTo-Json -Compress | Set-Content -Path $OutFile -Encoding UTF8
 Write-Host "已签发授权 -> $OutFile" -ForegroundColor Green
 Write-Host "  版本=$Edition  设备上限=$(if($MaxDevices -eq 0){'不限'}else{$MaxDevices})  有效期=$(if($Days -gt 0){"$Days 天"}else{'永久'})  功能=$(($features -join ','))" -ForegroundColor Cyan
+Write-Host "  授权唯一ID=$($claims.Id)  （如需吊销请妥善留存此 ID）" -ForegroundColor Cyan

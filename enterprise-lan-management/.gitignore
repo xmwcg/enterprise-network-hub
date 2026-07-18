@@ -13,3 +13,5 @@ Desktop.ini
 *.pfx
 dist/
 build/output/
+# 订单映射（厂商内部，仅示例可入库）
+orders.json

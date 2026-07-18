@@ -81,6 +81,9 @@ function Get-License {
             return New-LicenseResult -Valid $false -Reason '授权签名校验失败（文件被篡改或非法）。' -Source $file
         }
         $claims = [System.Text.Encoding]::UTF8.GetString($payload) | ConvertFrom-Json
+        if ($claims.Id -and (Test-Revocation -LicenseId $claims.Id)) {
+            return New-LicenseResult -Valid $false -Reason '该授权已被厂商吊销，请停止使用并联系厂商。' -Source $file
+        }
         $expiry = if ($claims.Expiry) { [datetime]::Parse($claims.Expiry) } else { $null }
         if ($expiry -and $expiry -lt (Get-Date)) {
             return New-LicenseResult -Valid $false -Reason "授权已过期（有效期至 $($expiry.ToString('yyyy-MM-dd'))），请续费/升级。" -Source $file
@@ -91,7 +94,7 @@ function Get-License {
         [PSCustomObject]@{
             Valid = $true; Reason = '授权有效。'; Source = $file
             Company = $claims.Company; Edition = $ed; EditionLabel = $script:EditionDefs[$ed].Label
-            MaxDevices = $max; Features = $feats; Expiry = $expiry; Issued = $claims.Issued
+            MaxDevices = $max; Features = $feats; Expiry = $expiry; Issued = $claims.Issued; Id = $claims.Id
         }
     } catch {
         return New-LicenseResult -Valid $false -Reason "授权文件解析失败：$_" -Source $file
@@ -129,6 +132,10 @@ function Assert-License {
         $exp = if ($lic.Expiry) { $lic.Expiry.ToString('yyyy-MM-dd') } else { '永久' }
         $cap = if ($lic.MaxDevices -eq 0) { '不限' } else { [string]$lic.MaxDevices }
         Write-Host "授权：$($lic.EditionLabel)  公司=$($lic.Company)  设备上限=$cap  有效期至=$exp" -ForegroundColor Cyan
+        if ($lic.Expiry) {
+            $left = [int](($lic.Expiry - (Get-Date)).TotalDays)
+            if ($left -le 7) { Write-Host "提醒：授权将于 $left 天后到期，请提前续费/升级以持续使用高级功能。" -ForegroundColor Yellow }
+        }
     }
     $lic
 }
@@ -144,4 +151,89 @@ function Get-DeviceCount {
         if (Test-Path $dir) { return @(Get-ChildItem $dir -Filter *.json -ErrorAction SilentlyContinue).Count }
     } catch {}
     return 1
+}
+
+# ---------- 5) 授权吊销校验（M2：OCSP 风格离线/在线吊销名单） ----------
+function Get-RevokeList {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return @() }
+    try {
+        $doc = Get-Content $Path -Raw | ConvertFrom-Json
+        if (-not $doc.payload -or -not $doc.signature) { return $null }
+        $payload = [System.Convert]::FromBase64String($doc.payload)
+        $sig = [System.Convert]::FromBase64String($doc.signature)
+        if ($script:LicensePublicKeyXml -eq '__LICENSE_PUBLIC_KEY__') { return $null }
+        $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
+        $rsa.FromXmlString($script:LicensePublicKeyXml)
+        $oid = [System.Security.Cryptography.CryptoConfig]::MapNameToOID('SHA256')
+        if (-not $rsa.VerifyData($payload, $oid, $sig)) { return $null }
+        return @([System.Text.Encoding]::UTF8.GetString($payload) | ConvertFrom-Json)
+    } catch { return $null }
+}
+
+function Test-Revocation {
+    [CmdletBinding()]
+    param(
+        [string]$LicenseId,
+        [string]$LocalRevokeFile = (Join-Path $PSScriptRoot 'revoked.json'),
+        [string]$RevokeUrl = $env:JIN_REVOKE_URL
+    )
+    if (-not $LicenseId) { return $false }   # 旧授权无 Id，不判吊销
+    $ids = Get-RevokeList -Path $LocalRevokeFile
+    if ($ids -and (@($ids) -contains $LicenseId)) { return $true }
+    if ($RevokeUrl) {
+        try {
+            $resp = Invoke-RestMethod -Uri $RevokeUrl -TimeoutSec 15 -ErrorAction Stop
+            if ($resp.payload -and $resp.signature) {
+                $payload = [System.Convert]::FromBase64String($resp.payload)
+                $sig = [System.Convert]::FromBase64String($resp.signature)
+                $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
+                $rsa.FromXmlString($script:LicensePublicKeyXml)
+                $oid = [System.Security.Cryptography.CryptoConfig]::MapNameToOID('SHA256')
+                if ($rsa.VerifyData($payload, $oid, $sig)) {
+                    $ids = @([System.Text.Encoding]::UTF8.GetString($payload) | ConvertFrom-Json)
+                    if (@($ids) -contains $LicenseId) { return $true }
+                }
+            }
+        } catch { }
+    }
+    return $false
+}
+
+# ---------- 6) 剩余有效期（M2：试用转付费引导） ----------
+function Get-LicenseDaysLeft {
+    param([string]$Path)
+    $lic = Get-License -Path $Path
+    if (-not $lic.Valid -or -not $lic.Expiry) { return $null }
+    return [int](($lic.Expiry - (Get-Date)).TotalDays)
+}
+
+# ---------- 7) 在线激活（M2：订单号 + 机器指纹换取 .lic） ----------
+function Get-MachineFingerprint {
+    $uuid = try { (Get-CimInstance Win32_ComputerSystemProduct -ErrorAction SilentlyContinue).UUID } catch { '' }
+    $bios = try { (Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue).SerialNumber } catch { '' }
+    $raw = "$env:COMPUTERNAME|$uuid|$bios"
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    return [BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($raw))).Replace('-', '').ToLower()
+}
+
+function Request-OnlineActivation {
+    [CmdletBinding()]
+    param(
+        [string]$OrderNo,
+        [string]$Url,
+        [string]$OutFile = (Join-Path $PSScriptRoot 'company.lic')
+    )
+    if (-not $OrderNo) { Write-Error '请提供订单号（OrderNo）。'; return $false }
+    if (-not $Url) { Write-Error '请提供激活服务地址（Url）。'; return $false }
+    $body = @{ order = $OrderNo; fingerprint = (Get-MachineFingerprint) } | ConvertTo-Json
+    try {
+        $resp = Invoke-RestMethod -Uri $Url -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 30 -ErrorAction Stop
+    } catch {
+        Write-Error "在线激活请求失败：$_"; return $false
+    }
+    if (-not $resp.payload -or -not $resp.signature) { Write-Error '激活服务返回格式非法。'; return $false }
+    [ordered]@{ payload = $resp.payload; signature = $resp.signature } | ConvertTo-Json -Compress | Set-Content -Path $OutFile
+    Write-Host "在线激活成功，授权已写入 $OutFile" -ForegroundColor Green
+    return $true
 }

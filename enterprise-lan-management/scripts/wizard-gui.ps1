@@ -21,6 +21,8 @@ if ($MyInvocation.InvocationName -ne '.') { Request-AdminOrElevate -ScriptPath $
 # 授权校验（商业闭环：无效授权即终止向导）
 $lic = Get-License -Path $null
 if (-not $lic.Valid) { Write-Error "授权校验未通过：$($lic.Reason)"; exit 1 }
+$dl = Get-LicenseDaysLeft -Path $null
+if ($null -ne $dl) { Write-Host ("授权剩余天数：$dl") -ForegroundColor Cyan }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
