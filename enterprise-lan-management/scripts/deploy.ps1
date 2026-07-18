@@ -20,6 +20,7 @@ param(
 . .\lib-init.ps1
 . .\lib-discovery.ps1
 . .\lib-audit.ps1
+. .\lib-license.ps1
 
 # 权限最大化：非管理员自动提权（UAC 由用户确认，即"用户决策"）
 if ($MyInvocation.InvocationName -ne '.') { Request-AdminOrElevate -ScriptPath $PSCommandPath -Bound $PSBoundParameters -Unbound $args }
@@ -41,6 +42,13 @@ Write-Host "本机：$($self.ComputerName)  IP=$($self.IP)  $($self.OS) ($($self
 # ---------- 2) 载入配置 ----------
 if (-not (Test-Path $ConfigFile)) { Write-Error "未找到配置文件 $ConfigFile"; exit 1 }
 $cfg = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+
+# ---------- 1.5) 授权校验（商业闭环：无效授权即终止部署） ----------
+$lic = Get-License -Path $cfg.LicenseFile
+if (-not $lic.Valid) { Write-Error "授权校验未通过：$($lic.Reason)"; exit 1 }
+$exp = if ($lic.Expiry) { $lic.Expiry.ToString('yyyy-MM-dd') } else { '永久' }
+$cap = if ($lic.MaxDevices -eq 0) { '不限' } else { [string]$lic.MaxDevices }
+Write-Host "授权：$($lic.EditionLabel)  公司=$($lic.Company)  设备上限=$cap  有效期至=$exp" -ForegroundColor Cyan
 
 # ---------- 3) 应用基线 ----------
 Write-Host "`n[1/5] 应用网络基线（专用网络 + 发现 + SMB + RDP）..." -ForegroundColor Cyan
@@ -185,6 +193,14 @@ if ($isFileServer) {
     Write-Host "文件服务器已就绪：\\$env:COMPUTERNAME\CompanyShare" -ForegroundColor Green
 }
 
+# 补充资产字段（闭合数据模型：让 manager 资产清单能正确读取，而非显示空白/错值）
+try { $gw = (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop } catch { $gw = $null }
+try { $dns = @((Get-DnsClientServerAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.ServerAddresses } | Select-Object -First 1).ServerAddresses) } catch { $dns = @() }
+$self | Add-Member -NotePropertyName 'RDP_HostOK'  -NotePropertyValue $self.RDP_OK -Force
+$self | Add-Member -NotePropertyName 'Gateway'     -NotePropertyValue $gw -Force
+$self | Add-Member -NotePropertyName 'DNS'         -NotePropertyValue $dns -Force
+$self | Add-Member -NotePropertyName 'IsFileServer' -NotePropertyValue $isFileServer -Force
+
 # ---------- 5) 直接部署：映射共享 / TrustedHosts / 心跳清单 / WinRM ----------
 Write-Host "`n[4/5] 直接部署：映射共享 / TrustedHosts / 心跳清单..." -ForegroundColor Cyan
 if ($script:FileServerHost) {
@@ -196,6 +212,15 @@ if ($script:FileServerHost) {
             Write-Host "已映射 $unc -> ${letter}:"
         }
     }
+    # 设备数上限门禁（商业闭环：超授权设备数则阻断，驱动升级）
+    if ($lic.MaxDevices -gt 0) {
+        $cur = Get-DeviceCount -FileServerHost $script:FileServerHost
+        if (($cur + 1) -gt $lic.MaxDevices) {
+            Write-Error "授权设备数已达上限（$cur / $($lic.MaxDevices)），无法继续部署，请升级授权或联系厂商。"
+            exit 1
+        }
+    }
+
     # TrustedHosts：优先向导扁平字段 $cfg.TrustedHosts，兼容旧的 $cfg.Security.TrustedHosts
     $thMode = if ($null -ne $cfg.TrustedHosts) { $cfg.TrustedHosts } elseif ($cfg.Security) { $cfg.Security.TrustedHosts } else { "discovered" }
     switch ($thMode) {

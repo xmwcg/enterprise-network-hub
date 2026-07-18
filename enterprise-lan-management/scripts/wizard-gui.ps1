@@ -14,8 +14,13 @@ param(
 )
 
 . .\lib-init.ps1
+. .\lib-license.ps1
 # 权限最大化：非管理员自动提权（UAC 由用户确认，即"用户决策"）
 if ($MyInvocation.InvocationName -ne '.') { Request-AdminOrElevate -ScriptPath $PSCommandPath -Bound $PSBoundParameters -Unbound $args }
+
+# 授权校验（商业闭环：无效授权即终止向导）
+$lic = Get-License -Path $null
+if (-not $lic.Valid) { Write-Error "授权校验未通过：$($lic.Reason)"; exit 1 }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -92,7 +97,7 @@ function New-Group($text, $x, $y, $w, $h) {
 
 # ---------- 表单 ----------
 $form = New-Object Windows.Forms.Form
-$form.Text = "公司局域网互联互通 · 中文配置向导"
+$form.Text = "公司局域网互联互通 · 中文配置向导  [授权：$($lic.EditionLabel)]"
 $form.Size = New-Object Drawing.Size(760, 560)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -192,8 +197,7 @@ $btnGenOnly.Add_Click({
 function Render-Step {
     $content.Controls.Clear()
     $sp = New-Object Windows.Forms.Panel
-    $sp.Location = New-Object Drawing.Point(0, 0)
-    $sp.Size = New-Object Drawing.Size($content.Width, $content.Height)
+    $sp.Dock = "Fill"
     $sp.BackColor = $bg
     $sp.AutoScroll = $true
     $content.Controls.Add($sp)
@@ -271,21 +275,21 @@ function Render-Step {
         }
         7 {
             $i = $script:inputs
-            $gb1 = New-Group "是否禁止 RDP 暴露到公网？" 18 56 420 70
-            $i.rbBlock_YES = New-Radio "是（推荐：不要把 3389 映射到公网）" $true 36 80 380
-            $i.rbBlock_NO = New-Radio "否（不推荐）" $false 36 112 380
+            $gb1 = New-Group "是否禁止 RDP 暴露到公网？" 18 56 420 78
+            $i.rbBlock_YES = New-Radio "是（推荐：不要把 3389 映射到公网）" $true 16 22 380
+            $i.rbBlock_NO = New-Radio "否（不推荐）" $false 16 48 380
             $gb1.Controls.AddRange(@($i.rbBlock_YES, $i.rbBlock_NO))
 
-            $gb2 = New-Group "WinRM TrustedHosts 范围？" 18 138 420 92
-            $i.rbTH_disc = New-Radio "仅发现的对端 IP（推荐）" $true 36 162 380
-            $i.rbTH_all = New-Radio "全部（*）" $false 36 194 380
-            $i.rbTH_off = New-Radio "关闭" $false 36 226 380
+            $gb2 = New-Group "WinRM TrustedHosts 范围？" 18 148 420 108
+            $i.rbTH_disc = New-Radio "仅发现的对端 IP（推荐）" $true 16 22 380
+            $i.rbTH_all = New-Radio "全部（*）" $false 16 48 380
+            $i.rbTH_off = New-Radio "关闭" $false 16 74 380
             $gb2.Controls.AddRange(@($i.rbTH_disc, $i.rbTH_all, $i.rbTH_off))
 
-            $gb3 = New-Group "是否需要远程 / 外网办公接入？" 18 244 420 100
-            $i.rbRA_none = New-Radio "不需要远程办公" $true 36 268 380
-            $i.rbRA_ts = New-Radio "Tailscale（零信任组网）" $false 36 300 380
-            $i.rbRA_zt = New-Radio "ZeroTier（虚拟局域网）" $false 36 332 380
+            $gb3 = New-Group "是否需要远程 / 外网办公接入？" 18 270 420 108
+            $i.rbRA_none = New-Radio "不需要远程办公" $true 16 22 380
+            $i.rbRA_ts = New-Radio "Tailscale（零信任组网）" $false 16 48 380
+            $i.rbRA_zt = New-Radio "ZeroTier（虚拟局域网）" $false 16 74 380
             $gb3.Controls.AddRange(@($i.rbRA_none, $i.rbRA_ts, $i.rbRA_zt))
 
             $sp.Controls.AddRange(@($gb1, $gb2, $gb3))
@@ -448,7 +452,7 @@ function Save-Config {
         TrustedHosts     = $s.TrustedHosts
         RemoteAccess     = $s.RemoteAccess
     }
-    $out | ConvertTo-Json -Depth 3 | Set-Content -Path $ConfigFile -Encoding UTF8
+    $out | ConvertTo-Json -Depth 3 | Set-Content -Path $ConfigFile
     Write-Host "配置已写入 $ConfigFile" -ForegroundColor Green
 }
 

@@ -15,5 +15,6 @@
   "BlockRdpPublic": true,
   "TrustedHosts": "discovered",
   "RemoteAccess": "none",
-  "Notes": "推荐用 wizard.ps1 生成本文件。密码不落盘：管理账号密码与 RustDesk 无人值守密码均在 deploy.ps1 运行时现场输入。FileServer=AUTO 自动认领/复用 CompanyShare，也可填主机名或运行时加 -FileServer。TrustedHosts: discovered=发现的对端IP / *=全部 / off=不改动 / 或填具体地址。兼容旧字段 RustDeskPassword(明文)、RustDeskServer、Security.TrustedHosts。"
+  "LicenseFile": "company.lic",
+  "Notes": "推荐用 wizard.ps1 生成本文件。密码不落盘：管理账号密码与 RustDesk 无人值守密码均在 deploy.ps1 运行时现场输入。FileServer=AUTO 自动认领/复用 CompanyShare，也可填主机名或运行时加 -FileServer。TrustedHosts: discovered=发现的对端IP / *=全部 / off=不改动 / 或填具体地址。LicenseFile 指向厂商签发的授权文件（company.lic），放入 scripts/ 即激活；缺省按 Free 版（3 台设备、仅基础互联）。兼容旧字段 RustDeskPassword(明文)、RustDeskServer、Security.TrustedHosts。"
 }

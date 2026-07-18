@@ -33,6 +33,7 @@ param(
 )
 . .\lib-init.ps1
 . .\lib-audit.ps1
+. .\lib-license.ps1
 
 # 权限最大化：非管理员自动提权（UAC 由用户确认）
 if ($MyInvocation.InvocationName -ne '.') { Request-AdminOrElevate -ScriptPath $PSCommandPath -Bound $PSBoundParameters -Unbound $args }
@@ -124,6 +125,10 @@ if ($MyInvocation.InvocationName -ne '.') {
     if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         Write-Error "请以管理员身份运行。"; exit 1
     }
+
+    # 授权校验（商业闭环：直接运行时也须校验功能权益）
+    $lic = Assert-License -Path $null -RequireFeature 'netpolicy'
+    if (-not $lic) { exit 1 }
 
     # 导出网关黑名单
     if ($ExportGatewayBlacklist) {

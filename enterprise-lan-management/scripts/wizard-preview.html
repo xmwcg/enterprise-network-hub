@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>金网通 · 配置向导原型预览</title>
+<style>
+  body{font-family:"Microsoft YaHei UI",system-ui,sans-serif;background:#1e1e1e;color:#d4d4d4;margin:0}
+  .nav{width:190px;position:fixed;top:0;bottom:0;background:#252526;padding-top:16px}
+  .nav div{padding:6px 12px;color:#969696;font-size:14px}
+  .nav div.active{color:#fff;font-weight:bold}
+  .content{margin-left:190px;padding:24px}
+  h2{color:#fff;margin-top:0}
+  .panel{background:#252526;border:1px solid #3c3c3c;border-radius:6px;padding:16px;margin:12px 0}
+  .panel .panel{background:#2d2d30}
+  label{display:block;margin:8px 0}
+  input[type=text],input:not([type]){background:#2d2d30;color:#d4d4d4;border:1px solid #3c3c3c;border-radius:4px;padding:4px 6px}
+  .btns{position:fixed;bottom:0;left:190px;right:0;background:#252526;padding:10px;display:flex;gap:8px;justify-content:flex-end}
+  button{background:#0e639c;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:14px}
+  .gen{background:#4ec976;color:#141414;font-weight:bold}
+  .exit{background:#3c3c3c}
+  .title{color:#9cb4c4;font-size:12px;margin-bottom:6px}
+  .note{color:#dcb446;font-size:12px}
+</style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div class="content"><div id="step"></div></div>
+<div class="btns">
+  <button id="back">上一步</button>
+  <button id="next">下一步</button>
+  <button id="gen" class="gen" style="display:none">生成并开始部署</button>
+  <button id="genonly" style="display:none">仅生成配置</button>
+  <button id="exit" class="exit">退出</button>
+</div>
+<script>
+const steps=["互联模式","统一管理账号","文件服务器策略","自动改名","家庭版远程替代(RustDesk)","发现范围","安全选项","确认与生成"];
+const total=steps.length;
+let cur=1;
+const nav=document.getElementById('nav');
+const stepEl=document.getElementById('step');
+function renderNav(){nav.innerHTML=steps.map((s,i)=>`<div class="${i+1===cur?'active':''}">${String(i+1).padStart(2,'0')}. ${s}</div>`).join('');}
+function render(){
+  renderNav();
+  let h=`<div class="title">步骤 ${cur} / ${total}：${steps[cur-1]}</div><h2>${steps[cur-1]}</h2>`;
+  const p={
+    1:'<div class="panel"><label><input type="radio" checked> 工作组（推荐，无需额外服务器）</label><label><input type="radio"> AD 域（需域控制器，需手动加域）</label><p>工作组名：<input value="COMPANY"></p></div>',
+    2:'<div class="panel"><p>统一管理账号名：<input value="itadmin"></p><p class="note">说明：密码将在部署时现场输入，不写入配置文件。</p></div>',
+    3:'<div class="panel"><label><input type="radio" checked> AUTO（自动认领/复用 CompanyShare）</label><label><input type="radio"> 指定一台主机名</label><label><input type="radio"> 本机即为文件服务器</label><p>共享根目录：<input value="D:\\CompanyShare"> 映射盘符：<input value="S" size="2"></p></div>',
+    4:'<div class="panel"><label><input type="radio" checked> 开启（WIN-/DESKTOP- 改为 前缀-NN）</label><label><input type="radio"> 关闭</label><p>改名前缀：<input value="PC"></p></div>',
+    5:'<div class="panel"><label><input type="radio" checked> 自动安装 RustDesk（家庭版远程桌面替代）</label><label><input type="radio"> 关闭</label><div class="panel"><label><input type="radio" checked> 部署时输入无人值守密码（不存盘）</label><label><input type="radio"> 否（仅安装，手动设置）</label></div></div>',
+    6:'<div class="panel"><label><input type="radio" checked> 自动（使用本机所在子网）</label><label><input type="radio"> 手动指定范围</label><p>范围：<input value="192.168.1.1-254"></p></div>',
+    7:'<div class="panel"><label><input type="radio" checked> 禁止 RDP 暴露到公网（推荐）</label><label><input type="radio"> 否（不推荐）</label></div><div class="panel"><label><input type="radio" checked> TrustedHosts：仅发现的对端</label><label><input type="radio"> 全部(*)</label><label><input type="radio"> 关闭</label></div><div class="panel"><label><input type="radio" checked> 不需要远程办公</label><label><input type="radio"> Tailscale</label><label><input type="radio"> ZeroTier</label></div>',
+    8:'<div class="panel">请确认以上配置，点击「生成并开始部署」或「仅生成配置」。</div>'
+  };
+  stepEl.innerHTML=h+p[cur];
+  document.getElementById('back').disabled=cur===1;
+  const last=cur===total;
+  document.getElementById('next').style.display=last?'none':'inline';
+  document.getElementById('gen').style.display=last?'inline':'none';
+  document.getElementById('genonly').style.display=last?'inline':'none';
+}
+document.getElementById('next').onclick=()=>{if(cur<total){cur++;render();}};
+document.getElementById('back').onclick=()=>{if(cur>1){cur--;render();}};
+document.getElementById('gen').onclick=()=>alert('原型预览：实际向导将生成 company-config.json 并可启动 deploy.ps1 部署。');
+document.getElementById('genonly').onclick=()=>alert('原型预览：实际向导将仅生成 company-config.json。');
+document.getElementById('exit').onclick=()=>alert('退出向导。');
+render();
+</script>
+</body>
+</html>

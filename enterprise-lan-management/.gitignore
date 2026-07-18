@@ -1,0 +1,10 @@
+# 厂商私钥：绝不可入库或随产品分发
+vendor.key.json
+
+# 客户授权文件：按客户签发，不应进入仓库
+*.lic
+
+# 系统/编辑器临时文件
+Thumbs.db
+Desktop.ini
+.DS_Store

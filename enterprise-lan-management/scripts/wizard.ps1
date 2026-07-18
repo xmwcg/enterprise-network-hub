@@ -14,8 +14,13 @@ param(
 )
 
 . .\lib-init.ps1
+. .\lib-license.ps1
 # 权限最大化：非管理员自动提权（UAC 由用户确认，即"用户决策"）
 if ($MyInvocation.InvocationName -ne '.') { Request-AdminOrElevate -ScriptPath $PSCommandPath -Bound $PSBoundParameters -Unbound $args }
+
+# 授权校验（商业闭环：无效授权即终止向导）
+$lic = Get-License -Path $null
+if (-not $lic.Valid) { Write-Error "授权校验未通过：$($lic.Reason)"; exit 1 }
 
 # ---------- 默认状态 ----------
 $cfg = [PSCustomObject]@{
@@ -248,7 +253,7 @@ while ($true) {
                     TrustedHosts     = $cfg.TrustedHosts
                     RemoteAccess     = $cfg.RemoteAccess
                 }
-                $out | ConvertTo-Json -Depth 3 | Set-Content -Path $ConfigFile -Encoding UTF8
+                $out | ConvertTo-Json -Depth 3 | Set-Content -Path $ConfigFile
                 Write-Host "配置已写入 $ConfigFile" -ForegroundColor Green
                 if ($r -eq 'GENDEP' -and -not $SkipDeploy) {
                     Write-Host "即将启动部署..." -ForegroundColor Cyan

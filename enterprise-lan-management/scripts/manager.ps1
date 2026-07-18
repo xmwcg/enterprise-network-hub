@@ -43,6 +43,7 @@ param(
 . .\lib-init.ps1
 . .\lib-discovery.ps1
 . .\lib-audit.ps1
+. .\lib-license.ps1
 . .\netpolicy.ps1
 . .\netcheck.ps1
 
@@ -51,6 +52,17 @@ if ($MyInvocation.InvocationName -ne '.') { Request-AdminOrElevate -ScriptPath $
 $cfg = Get-Content $ConfigFile -Raw | ConvertFrom-Json
 $fs = if ($FileServerHost) { $FileServerHost } elseif ($cfg.FileServer -ne "AUTO") { $cfg.FileServer } else { $null }
 if (-not $fs) { Write-Error "AUTO 模式下需通过 -FileServerHost 指定文件服务器，或把配置改为固定主机名。"; exit 1 }
+
+# ---------- 授权校验与功能权益门禁（商业闭环；先校验，避免无效时还让用户输入密码） ----------
+$needFeature = $null
+if ($ListOnly)        { $needFeature = 'list' }
+elseif ($CollectInventory) { $needFeature = 'inventory' }
+elseif ($NetPolicy)   { $needFeature = 'netpolicy' }
+elseif ($NetCheck -or $NetReport) { $needFeature = 'netcheck' }
+elseif ($PushFile -or $ScriptFile) { $needFeature = 'remotemgmt' }
+else { $needFeature = 'remotemgmt' }   # 默认动作：批量远程执行
+$lic = Assert-License -Path $cfg.LicenseFile -RequireFeature $needFeature -Quiet:$false
+if (-not $lic) { exit 1 }
 
 $sec = Read-Host -Prompt "管理账号 [$($cfg.MgmtUser)] 密码" -AsSecureString
 $cred = New-Object System.Management.Automation.PSCredential($cfg.MgmtUser, $sec)
