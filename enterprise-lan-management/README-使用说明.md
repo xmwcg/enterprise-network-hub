@@ -12,6 +12,8 @@ enterprise-lan-management/
 ├── 商业授权与上线说明.md     # ★商业闭环：版本权益、授权签发/激活、门禁、安全设计
 ├── README-使用说明.md       # 本文件
 ├── LICENSE                  # 版权与许可（含商业授权条款）
+├── build/
+│   └── installer.iss        # ★InnoSetup 安装包模板（M1）
 └── scripts/
     ├── wizard-gui.ps1       # ★★主入口：中文图形化配置向导（WinForms 窗口，推荐）
     ├── wizard.ps1           # 中文控制台配置向导（无图形界面时的备选）
@@ -22,6 +24,8 @@ enterprise-lan-management/
     ├── lib-audit.ps1        # 审计库：统一写溯源日志（被其他脚本引用）
     ├── lib-license.ps1      # ★授权库：RSA 签名校验 + 有效期/设备数/功能门禁
     ├── gen-license.ps1      # ★厂商授权签发工具（仅厂商内部，私钥不入库）
+    ├── sign-scripts.ps1     # ★代码签名工具（M1）：Authenticode 批量签名 + 校验
+    ├── install.ps1          # ★安装引导器（M1）：部署脚本集 + 快捷方式 + 卸载项
     ├── deploy.ps1           # 核心：自动检测+采集+部署（每台运行）
     ├── discover.ps1         # 仅发现并打印对端（预览，只读）
     ├── manager.ps1          # 统一管控：批量远程执行 / 上网管控 / 网络体检

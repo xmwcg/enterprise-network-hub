@@ -8,3 +8,8 @@ vendor.key.json
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# 代码签名证书（PFX）与构建产物：绝不入库
+*.pfx
+dist/
+build/output/

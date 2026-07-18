@@ -57,3 +57,22 @@ function Request-AdminOrElevate {
         exit 1
     }
 }
+
+# ---------- 4) 代码签名校验（防篡改，M1 工具函数；默认不启用，供 sign-scripts.ps1 与 M4 门禁使用） ----------
+function Test-JinSignature {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$ExpectedSubject = ''
+    )
+    if (-not (Test-Path $Path)) { return $false }
+    try {
+        $sig = Get-AuthenticodeSignature -FilePath $Path -ErrorAction Stop
+    } catch {
+        return $false
+    }
+    if ($sig.Status -eq 'NotFound') { return $null }   # 未签名 = 开发态（允许）
+    if ($sig.Status -ne 'Valid') { return $false }     # 签名存在但无效 = 篡改/过期
+    if ($ExpectedSubject -and $sig.SignerCertificate.Subject -notlike "*$ExpectedSubject*") { return $false }
+    return $true
+}
