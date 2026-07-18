@@ -15,3 +15,8 @@ dist/
 build/output/
 # 订单映射（厂商内部，仅示例可入库）
 orders.json
+
+# 控制台运行数据（M3）：设备注册表/任务队列/令牌，绝不入库
+console-data/
+scripts/console-data/
+*.token

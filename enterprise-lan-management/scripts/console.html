@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金奕鸣 · 局域网集中管理控制台</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --txt:#e2e8f0; --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background:var(--bg); color:var(--txt); }
+  header { padding:14px 20px; background:#0b1220; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:16px; margin:0; }
+  .wrap { padding:18px; display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .card h2 { font-size:14px; margin:0 0 10px; color:var(--accent); }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+  th { color:#94a3b8; font-weight:600; }
+  .tag { padding:1px 8px; border-radius:10px; font-size:11px; }
+  .ok { background:rgba(34,197,94,.15); color:var(--ok); }
+  .warn { background:rgba(245,158,11,.15); color:var(--warn); }
+  .bad { background:rgba(239,68,68,.15); color:var(--bad); }
+  input,select,textarea,button { font-family:inherit; font-size:13px; border-radius:6px; border:1px solid var(--line); background:#0b1220; color:var(--txt); padding:7px 9px; }
+  input,select,textarea { width:100%; margin-bottom:8px; }
+  button { background:var(--accent); color:#06283d; border:none; font-weight:600; cursor:pointer; }
+  button:hover { opacity:.9; }
+  .full { grid-column: 1 / -1; }
+  #log { font-size:12px; color:#94a3b8; max-height:160px; overflow:auto; }
+  .muted { color:#64748b; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>金奕鸣 · 局域网集中管理控制台</h1>
+  <span class="muted" id="status">连接中…</span>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <h2>① 管理员令牌</h2>
+    <input id="token" placeholder="粘贴控制台启动时打印的令牌" />
+    <p class="muted">创建任务 / 注册设备需携带此令牌。控制台启动时在 PowerShell 窗口打印。</p>
+  </div>
+
+  <div class="card">
+    <h2>② 在线设备（agent 注册）</h2>
+    <table><thead><tr><th>主机</th><th>IP</th><th>系统</th><th>最近心跳</th></tr></thead>
+      <tbody id="devBody"><tr><td colspan="4" class="muted">加载中…</td></tr></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2>③ 资产清单（兼容 Mgmt$ 共享）</h2>
+    <table><thead><tr><th>主机</th><th>IP</th><th>系统</th><th>网关</th><th>文件服务器</th></tr></thead>
+      <tbody id="invBody"><tr><td colspan="5" class="muted">加载中…</td></tr></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2>④ 新建任务（下发到终端 agent）</h2>
+    <select id="taskType">
+      <option value="command">command（本地执行 PowerShell 命令）</option>
+      <option value="netpolicy">netpolicy（上网策略 allow/deny）</option>
+      <option value="netcheck">netcheck（网络体检）</option>
+    </select>
+    <textarea id="taskPayload" rows="4" placeholder='command: {"command":"Get-Service WinRM | Select Name,Status | ConvertTo-Json"}'></textarea>
+    <input id="taskTargets" placeholder="目标设备ID，逗号分隔；留空=全部已注册设备" />
+    <button onclick="createTask()">创建并下发任务</button>
+    <p class="muted">示例 payload（netpolicy）：{"policy":"deny","hardcut":false}</p>
+  </div>
+
+  <div class="card full">
+    <h2>⑤ 任务队列与结果</h2>
+    <table><thead><tr><th>任务ID</th><th>类型</th><th>状态</th><th>目标数</th><th>创建时间</th></tr></thead>
+      <tbody id="taskBody"><tr><td colspan="5" class="muted">加载中…</td></tr></tbody></table>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+const API = location.origin + '/api';
+function hdr() { return { 'X-Console-Token': document.getElementById('token').value }; }
+function log(m){ const el=document.getElementById('log'); el.innerHTML += m+'<br>'; el.scrollTop = el.scrollHeight; }
+function st(ts){ const s=document.getElementById('status'); if(ts){s.textContent='已连接 · '+ts;} else {s.textContent='未连接';} }
+async function getj(path){ const r=await fetch(API+path); return r.json(); }
+
+async function refresh(){
+  try { const s=await getj('/status'); st('服务器 '+s.fileServer+' · 设备 '+s.devices+' · 任务 '+s.tasks); }
+  catch(e){ st('未连接'); return; }
+  // devices
+  const devs=await getj('/devices'); const db=document.getElementById('devBody');
+  db.innerHTML = devs.length? devs.map(d=>`<tr><td>${d.ComputerName||d.Id}</td><td>${d.IP||'-'}</td><td>${d.Edition||d.OS||'-'}</td><td>${d.LastSeen||'-'}</td></tr>`).join('') : '<tr><td colspan="4" class="muted">暂无注册设备，请在终端运行 agent.ps1</td></tr>';
+  // inventory
+  const inv=await getj('/inventory'); const ib=document.getElementById('invBody');
+  ib.innerHTML = inv.length? inv.map(h=>`<tr><td>${h.ComputerName||'-'}</td><td>${h.IP||'-'}</td><td>${h.OS||'-'}</td><td>${h.Gateway||'-'}</td><td>${h.IsFileServer?'是':'否'}</td></tr>`).join('') : '<tr><td colspan="5" class="muted">暂无共享资产（运行 deploy.ps1 后会出现）</td></tr>';
+  // tasks
+  const tasks=await getj('/tasks'); const tb=document.getElementById('taskBody');
+  tb.innerHTML = tasks.length? tasks.map(t=>`<tr><td>${t.Id}</td><td>${t.Type}</td><td><span class="tag ${t.Status==='completed'?'ok':t.Status==='active'?'warn':'bad'}">${t.Status}</span></td><td>${t.Items?t.Items.length:0}</td><td>${t.Created}</td></tr>`).join('') : '<tr><td colspan="5" class="muted">暂无任务</td></tr>';
+}
+async function createTask(){
+  const type=document.getElementById('taskType').value;
+  let payload;
+  try { payload=JSON.parse(document.getElementById('taskPayload').value||'{}'); }
+  catch(e){ alert('Payload 不是合法 JSON：'+e.message); return; }
+  const tg=document.getElementById('taskTargets').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const body=JSON.stringify({ Type:type, Payload:payload, Targets: tg });
+  try {
+    const r=await fetch(API+'/tasks',{method:'POST',headers:hdr(),body});
+    if(r.status===401){ alert('令牌无效'); return; }
+    const t=await r.json(); log('已创建任务 '+t.Id+'（状态：'+t.Status+'）'); refresh();
+  } catch(e){ alert('创建失败：'+e.message); }
+}
+refresh(); setInterval(refresh, 8000);
+</script>
+</body>
+</html>
