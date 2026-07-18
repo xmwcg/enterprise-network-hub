@@ -6,6 +6,8 @@
     · command  - 在本地执行一段 PowerShell 命令（Payload.command）
     · netpolicy- 本地应用上网策略（Payload.policy=allow|deny, Payload.hardcut）
     · netcheck - 本地执行网络体检
+    · diskclean- C盘瘦身：仅生成清理预览并写待确认文件，绝不静默删除；
+                 本地用户需运行 diskclean.ps1 确认后执行（Payload: backupDrive/categories/advanced）
   复用本仓库 netpolicy.ps1 / netcheck.ps1 的成熟函数，保证与 manager.ps1 行为一致。
 .PARAMETER ConsoleUrl  控制台地址（默认 http://localhost:8080）
 .PARAMETER Token       管理员令牌（与控制台启动时打印的一致；注册/上报需携带）
@@ -23,6 +25,7 @@ param(
 . .\lib-console.ps1
 . .\netpolicy.ps1
 . .\netcheck.ps1
+. .\lib-diskclean.ps1   # M3.5：C盘瘦身（仅扫描预览，删除需本地确认）
 
 if ($MyInvocation.InvocationName -ne '.') { Request-AdminOrElevate -ScriptPath $PSCommandPath -Bound $PSBoundParameters -Unbound $args }
 
@@ -69,6 +72,22 @@ function Invoke-AgentTask {
             'netcheck' {
                 $r = Invoke-NetCheck
                 $out.Score = $r.Score; $out.Fail = $r.Fail; $out.Warn = $r.Warn
+            }
+            'diskclean' {
+                # 仅生成清理预览并等待本地用户确认；绝不静默删除（满足"每台终端必须本地弹确认"）
+                $adv = [bool]$payload.advanced
+                $scan = Invoke-SafeScan -Advanced:$adv
+                $sel = if ($payload.categories) { @($payload.categories) } else { ($scan | Where-Object { -not $_.Advanced }).Id }
+                $picked = $scan | Where-Object { $_.Id -in $sel }
+                $total = ($picked | Measure-Object SizeBytes -Sum).Sum
+                $pf = Save-PendingPlan -ScanResults $scan -SelectedIds $sel -BackupDrive $payload.backupDrive -Advanced $adv
+                # 尽力提示本地登录用户（失败不影响任务结果）
+                try { msg * /TIME:30 "金网通：控制台已下发 C盘清理任务，请在本地以管理员运行 diskclean.ps1 查看并确认后执行。预览文件：$pf" 2>$null } catch { }
+                $out.PendingConfirm = $true
+                $out.PendingFile = $pf
+                $out.TotalBytes = $total
+                $out.Categories = $sel
+                $out.Message = "已生成清理预览（未删除任何文件），等待本地用户确认执行。"
             }
             default { $out.Error = "不支持的任务类型：$type" }
         }

@@ -19,10 +19,10 @@ $script:LicensePublicKeyXml = '__LICENSE_PUBLIC_KEY__'
 
 # 版本与功能权益模型（商业分层）
 $script:EditionDefs = [ordered]@{
-    Free       = [ordered]@{ MaxDevices = 3;  Features = @('interconnect', 'list');                                                          Label = '免费版' }
-    Trial      = [ordered]@{ MaxDevices = 25; Features = @('interconnect', 'list', 'inventory', 'netpolicy', 'netcheck', 'remotemgmt');     Label = '试用版(30天)' }
-    Pro        = [ordered]@{ MaxDevices = 50; Features = @('interconnect', 'list', 'inventory', 'netpolicy', 'netcheck', 'remotemgmt');     Label = '专业版' }
-    Enterprise = [ordered]@{ MaxDevices = 0;  Features = @('interconnect', 'list', 'inventory', 'netpolicy', 'netcheck', 'remotemgmt', 'support'); Label = '企业版' }
+    Free       = [ordered]@{ MaxDevices = 3;  Features = @('interconnect', 'list', 'diskclean');                                                                  Label = '免费版' }
+    Trial      = [ordered]@{ MaxDevices = 25; Features = @('interconnect', 'list', 'diskclean', 'inventory', 'netpolicy', 'netcheck', 'remotemgmt'); Label = '试用版(30天)' }
+    Pro        = [ordered]@{ MaxDevices = 50; Features = @('interconnect', 'list', 'diskclean', 'inventory', 'netpolicy', 'netcheck', 'remotemgmt'); Label = '专业版' }
+    Enterprise = [ordered]@{ MaxDevices = 0;  Features = @('interconnect', 'list', 'diskclean', 'inventory', 'netpolicy', 'netcheck', 'remotemgmt', 'support'); Label = '企业版' }
 }
 
 function New-LicenseResult {

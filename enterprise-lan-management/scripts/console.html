@@ -60,11 +60,13 @@
       <option value="command">command（本地执行 PowerShell 命令）</option>
       <option value="netpolicy">netpolicy（上网策略 allow/deny）</option>
       <option value="netcheck">netcheck（网络体检）</option>
+      <option value="diskclean">diskclean（C盘瘦身/系统垃圾清理）</option>
     </select>
     <textarea id="taskPayload" rows="4" placeholder='command: {"command":"Get-Service WinRM | Select Name,Status | ConvertTo-Json"}'></textarea>
     <input id="taskTargets" placeholder="目标设备ID，逗号分隔；留空=全部已注册设备" />
     <button onclick="createTask()">创建并下发任务</button>
     <p class="muted">示例 payload（netpolicy）：{"policy":"deny","hardcut":false}</p>
+    <p class="muted">示例 payload（diskclean）：{"backupDrive":"D:","categories":["updcache","systmp","recycle","browsercache","wer","thumbcache","deliveryopt","winsxs"],"advanced":false}　⚠ 终端仅生成预览，需本地运行 diskclean.ps1 确认后才删除</p>
   </div>
 
   <div class="card full">
