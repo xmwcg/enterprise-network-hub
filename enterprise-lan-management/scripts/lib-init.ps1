@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS  统一初始化：编码 + 控制台 + 自动提权（所有入口脚本请先 dot-source 本文件）
 .DESCRIPTION
   · 统一文件写入编码为 UTF-8（带 BOM），彻底杜绝 PowerShell 5.1 默认 ANSI 读取导致的中文乱码；
@@ -32,7 +32,7 @@ function Request-AdminOrElevate {
     $wp = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
     if ($wp.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) { return }
 
-    $sb = [System.Text.StringBuilder]::new()
+    $sb = New-Object System.Text.StringBuilder
     [void]$sb.Append('-NoProfile -ExecutionPolicy Bypass -File "')
     [void]$sb.Append($ScriptPath)
     [void]$sb.Append('"')
