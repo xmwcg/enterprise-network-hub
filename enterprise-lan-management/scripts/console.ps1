@@ -19,6 +19,7 @@ param(
 . .\lib-init.ps1
 . .\lib-license.ps1
 . .\lib-console.ps1
+. .\lib-console-v2.ps1
 
 if ($MyInvocation.InvocationName -ne '.') { Request-AdminOrElevate -ScriptPath $PSCommandPath -Bound $PSBoundParameters -Unbound $args }
 
@@ -160,6 +161,43 @@ try {
                         $b = Read-Body $ctx | ConvertFrom-Json
                         $ok = Report-TaskResult -RootDir $conf.RootDir -TaskId $b.TaskId -DeviceId $b.DeviceId -Result $b.Result -Status $b.Status
                         Send-Json $ctx @{ ok = [bool]$ok }
+                    }
+                    break
+                }
+                # === V2 资产管理 API ===
+                '^/api/v2/dashboard$' {
+                    Send-Json  (Get-DashboardSummary .RootDir)
+                    break
+                }
+                '^/api/v2/assets$' {
+                    if ( -eq 'GET') {
+                        Send-Json  @(Get-Assets .RootDir)
+                    } elseif ( -eq 'POST') {
+                        if (-not (Check-Token )) { Send-Json  @{ error = 'unauthorized' } 401; break }
+                         = Read-Body  | ConvertFrom-Json
+                         = Add-Asset .RootDir 
+                        Send-Json   201
+                    }
+                    break
+                }
+                '^/api/v2/assets/([^/]+)$' {
+                    if ( -eq 'PUT') {
+                        if (-not (Check-Token )) { Send-Json  @{ error = 'unauthorized' } 401; break }
+                         = Read-Body  | ConvertFrom-Json
+                         = Update-Asset .RootDir [1] 
+                        if () { Send-Json   } else { Send-Json  @{ error = 'not found' } 404 }
+                    } elseif ( -eq 'DELETE') {
+                        if (-not (Check-Token )) { Send-Json  @{ error = 'unauthorized' } 401; break }
+                        Remove-Asset .RootDir [1]
+                        Send-Json  @{ ok = True }
+                    }
+                    break
+                }
+                '^/api/v2/price$' {
+                    if ( -eq 'POST') {
+                         = Read-Body  | ConvertFrom-Json
+                         = Search-Price -Keyword .keyword -Category .category
+                        Send-Json  
                     }
                     break
                 }
