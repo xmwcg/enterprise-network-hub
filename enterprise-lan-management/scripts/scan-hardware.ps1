@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS  金网通 · 完整硬件与系统信息扫描引擎 V2
 .DESCRIPTION
   PS 2.0+ 全兼容。采集：CPU/主板/内存/硬盘/GPU/网卡/显示器/BIOS/OS/软件等。
@@ -35,12 +35,12 @@ $tg=BytesToGB($OS.TotalVisibleMemorySize*1024); $fg=BytesToGB($OS.FreePhysicalMe
 $mem=@{totalGB=$tg;freeGB=$fg;usedGB=[math]::Round($tg-$fg,2);slots=$ml.Count;modules=$ml}
 
 # 硬盘
-$disks=@(Safe-WMI Win32_DiskDrive); $dl=@(); foreach($d in $disks){$dl+=@{model=($d.Model -replace '\s+',' ');sizeGB=BytesToGB $d.Size;interface=$d.InterfaceType;media=$d.MediaType}}
+$diskList=@(Safe-WMI Win32_DiskDrive); $dl=@(); $pdList=@(Get-PhysicalDisk -ErrorAction SilentlyContinue); foreach($d in $diskList){$pd=$pdList|?{$_.SerialNumber -eq $d.SerialNumber}|Select -First 1;$busType=if($pd){$pd.BusType}else{$d.InterfaceType};$dl+=@{model=($d.Model -replace '\s+',' ');sizeGB=BytesToGB $d.Size;interface=$busType;media=$d.MediaType}}
 $vols=@(Safe-WMI Win32_LogicalDisk|?{$_.DriveType -eq 3}); $vl=@(); foreach($v in $vols){$vl+=@{drive=$v.DeviceID;label=$v.VolumeName;totalGB=BytesToGB $v.Size;freeGB=BytesToGB $v.FreeSpace;usagePct=if($v.Size-gt0){[math]::Round(($v.Size-$v.FreeSpace)/$v.Size*100,1)}else{0}}}
 $disk=@{physical=$dl;volumes=$vl}
 
 # GPU
-$gpus=@(Safe-WMI Win32_VideoController); $gl=@(); foreach($g in $gpus){$gl+=@{name=($g.Name -replace '\s+',' ');vramMB=if($g.AdapterRAM){[math]::Round($g.AdapterRAM/1048576,0)}else{0};driver=$g.DriverVersion}}
+$gpuList=@(Safe-WMI Win32_VideoController); $gl=@(); foreach($g in $gpuList){$vram=0;try{$vram=[math]::Round($g.AdapterRAM/1048576,0)}catch{};$gl+=@{name=($g.Name -replace '\s+',' ');vramMB=$vram;driver=$g.DriverVersion}}
 $gpu=$gl
 
 # 网卡
@@ -52,7 +52,10 @@ $net=$nl
 # 显示器
 $mons=@(Safe-WMI Win32_DesktopMonitor); $monl=@(); foreach($m in $mons){$monl+=@{name=($m.Name -replace '\s+',' ');w=$m.ScreenWidth;h=$m.ScreenHeight}}
 
+# TPM检测
+$tpmOk=$false;try{$tp=Safe-WMI Win32_Tpm -ns 'root\cimv2\Security\MicrosoftTpm';if($tp){$tpmOk=$true}}catch{}
+
 # 输出
-$out=@{scanTime=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss');psVersion=$PSVersionTable.PSVersion.ToString();system=$sys;bios=$bios;motherboard=$mb;cpu=$cpu;memory=$mem;disk=$disk;gpu=$gpu;network=$net;monitors=$monl;tpmPresent=(Safe-WMI Win32_Tpm -ns 'root\cimv2\Security\MicrosoftTpm' -ne $null)}
-$json=$out|ConvertTo-Json -Depth 6 -Compress
+$out=@{scanTime=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss');psVersion=$PSVersionTable.PSVersion.ToString();system=$sys;bios=$bios;motherboard=$mb;cpu=$cpu;memory=$mem;disk=$disk;gpu=$gpu;network=$net;monitors=$monl;tpmPresent=$tpmOk}
+$json=$out|ConvertTo-Json -Depth 8 -Compress
 if($OutputPath){[IO.File]::WriteAllText($OutputPath,$json,[Text.Encoding]::UTF8);Write-Host "OK:$OutputPath"}else{Write-Output $json}

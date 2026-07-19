@@ -1,159 +1,91 @@
 ﻿<#
-.SYNOPSIS  金网通 · 资产管理模块 V2
-.DESCRIPTION
-  接收 scan-hardware.ps1 输出的 JSON，写入 SQLite 数据库，
-  支持导出 Excel/CSV，联网价格对比（京东/天猫搜索）。
+.SYNOPSIS  金网通 · 资产管理模块 V2（JSON版，零外部依赖）
 #>
 param(
-  [string]$ImportJson,      # scan-hardware.ps1 输出的 JSON 文件路径
-  [string]$ExportFormat,    # csv / excel
+  [string]$ImportJson,
+  [string]$ExportFormat,
   [string]$ExportPath,
-  [switch]$ListAssets,      # 列出所有资产
-  [switch]$PriceCheck,      # 联网价格对比（需要浏览器）
-  [string]$DbPath = ".\assets.db"
+  [switch]$ListAssets,
+  [string]$DbPath = "$PSScriptRoot\console-data\asset-db.json"
 )
 
-Add-Type -AssemblyName System.Data
-Add-Type -Path "$PSScriptRoot\System.Data.SQLite.dll" -ErrorAction SilentlyContinue
+$dbDir = Split-Path $DbPath -Parent
+if (-not (Test-Path $dbDir)) { New-Item -ItemType Directory -Path $dbDir -Force | Out-Null }
 
-function Get-DbConn { New-Object System.Data.SQLite.SQLiteConnection("Data Source=$DbPath;Version=3;") }
+function Get-Assets {
+  if (Test-Path $DbPath) {
+    try { return Get-Content $DbPath -Raw | ConvertFrom-Json }
+    catch { return @() }
+  }
+  return @()
+}
 
-function Init-DB {
-  $conn = Get-DbConn; $conn.Open()
-  $sql = @"
-CREATE TABLE IF NOT EXISTS assets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  hostname TEXT NOT NULL,
-  scanTime TEXT,
-  category TEXT NOT NULL,
-  subCategory TEXT,
-  itemName TEXT NOT NULL,
-  manufacturer TEXT,
-  model TEXT,
-  serialNumber TEXT,
-  spec TEXT,
-  status TEXT,
-  notes TEXT,
-  rawJson TEXT,
-  createdAt TEXT DEFAULT (datetime('now','localtime')),
-  updatedAt TEXT DEFAULT (datetime('now','localtime'))
-);
-CREATE INDEX IF NOT EXISTS idx_assets_host ON assets(hostname);
-CREATE INDEX IF NOT EXISTS idx_assets_cat ON assets(category);
-CREATE TABLE IF NOT EXISTS asset_prices (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  assetId INTEGER,
-  source TEXT,
-  productName TEXT,
-  price REAL,
-  url TEXT,
-  checkedAt TEXT DEFAULT (datetime('now','localtime')),
-  FOREIGN KEY(assetId) REFERENCES assets(id)
-);
-"@
-  $cmd = $conn.CreateCommand(); $cmd.CommandText = $sql; $cmd.ExecuteNonQuery() | Out-Null
-  $conn.Close()
+function Save-Assets($data) {
+  [IO.File]::WriteAllText($DbPath, ($data | ConvertTo-Json -Depth 8), [Text.Encoding]::UTF8)
 }
 
 function Import-Asset($jsonPath) {
-  Init-DB
   $data = Get-Content $jsonPath -Raw | ConvertFrom-Json
-  $conn = Get-DbConn; $conn.Open()
-  $tx = $conn.BeginTransaction()
+  $assets = @(Get-Assets)
+  $sys = $data.system
+  $ts = $data.scanTime
+  $hostname = $sys.hostname
 
   # 系统
-  $sys = $data.system
-  ExecSQL $conn $tx "INSERT INTO assets(hostname,scanTime,category,itemName,manufacturer,model,spec,rawJson) VALUES(@h,@t,@c,@n,@m,@d,@s,@r)" @{
-    h=$sys.hostname; t=$data.scanTime; c="system"; n="OperatingSystem"
-    m=$sys.manufacturer; d=$sys.model; s="$($sys.osCaption) $($sys.osArch)"; r=$jsonPath
-  }
-  ExecSQL $conn $tx "INSERT INTO assets(hostname,scanTime,category,itemName,manufacturer,model,serialNumber,rawJson) VALUES(@h,@t,@c,@n,@m,@d,@s,@r)" @{
-    h=$sys.hostname; t=$data.scanTime; c="system"; n="ComputerSystem"
-    m=$sys.manufacturer; d=$sys.model; s=$sys.systemType; r=$jsonPath
-  }
+  $assets += @{id=[guid]::NewGuid().ToString("N").Substring(0,8);hostname=$hostname;scanTime=$ts;category="system";itemName="OperatingSystem";manufacturer=$sys.manufacturer;model=$sys.model;spec="$($sys.osCaption) $($sys.osArch)";createdAt=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')}
 
   # CPU
-  foreach($c in $data.cpu.detail){
-    ExecSQL $conn $tx "INSERT INTO assets(hostname,scanTime,category,itemName,manufacturer,model,spec,rawJson) VALUES(@h,@t,@c,@n,@m,@d,@s,@r)" @{
-      h=$sys.hostname; t=$data.scanTime; c="cpu"; n=$c.name; m=$c.manufacturer
-      d=$c.name; s="$($c.cores)C/$($c.threads)T $($c.maxMHz)MHz"; r=$jsonPath
-    }
-  }
-
-  # 主板
-  ExecSQL $conn $tx "INSERT INTO assets(hostname,scanTime,category,itemName,manufacturer,model,serialNumber,rawJson) VALUES(@h,@t,@c,@n,@m,@d,@s,@r)" @{
-    h=$sys.hostname; t=$data.scanTime; c="motherboard"; n="主板"
-    m=$data.motherboard.manufacturer; d=$data.motherboard.product; s=$data.motherboard.serial; r=$jsonPath
+  foreach ($c in $data.cpu.detail) {
+    $assets += @{id=[guid]::NewGuid().ToString("N").Substring(0,8);hostname=$hostname;scanTime=$ts;category="cpu";itemName=$c.name;manufacturer=$c.manufacturer;model=$c.name;spec="$($c.cores)C/$($c.threads)T $($c.maxMHz)MHz";createdAt=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')}
   }
 
   # 内存
-  foreach($m in $data.memory.modules){
-    ExecSQL $conn $tx "INSERT INTO assets(hostname,scanTime,category,itemName,manufacturer,model,spec,rawJson) VALUES(@h,@t,@c,@n,@m,@d,@s,@r)" @{
-      h=$sys.hostname; t=$data.scanTime; c="memory"; n="$($m.capGB)GB $($m.speed)MHz"
-      m=$m.manufacturer; d=$m.part; s="Slot: $($m.slot)"; r=$jsonPath
-    }
+  foreach ($m in $data.memory.modules) {
+    $assets += @{id=[guid]::NewGuid().ToString("N").Substring(0,8);hostname=$hostname;scanTime=$ts;category="memory";itemName="$($m.capGB)GB $($m.speed)MHz";manufacturer=$m.manufacturer;model=$m.part;spec="Slot:$($m.slot)";createdAt=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')}
   }
 
   # 硬盘
-  foreach($d in $data.disk.physical){
-    ExecSQL $conn $tx "INSERT INTO assets(hostname,scanTime,category,itemName,manufacturer,model,spec,serialNumber,rawJson) VALUES(@h,@t,@c,@n,@m,@d,@s,@sn,@r)" @{
-      h=$sys.hostname; t=$data.scanTime; c="disk"; n="$($d.sizeGB)GB $($d.interface)"
-      m=$d.manufacturer; d=$d.model; s="$($d.media)"; sn=$d.serialNumber; r=$jsonPath
-    }
+  foreach ($d in $data.disk.physical) {
+    $assets += @{id=[guid]::NewGuid().ToString("N").Substring(0,8);hostname=$hostname;scanTime=$ts;category="disk";itemName="$($d.sizeGB)GB";manufacturer=$d.manufacturer;model=$d.model;spec="$($d.interface)";createdAt=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')}
   }
 
   # GPU
-  foreach($g in $data.gpu){
-    ExecSQL $conn $tx "INSERT INTO assets(hostname,scanTime,category,itemName,manufacturer,model,spec,rawJson) VALUES(@h,@t,@c,@n,@m,@d,@s,@r)" @{
-      h=$sys.hostname; t=$data.scanTime; c="gpu"; n=$g.name; m=$g.manufacturer
-      d=$g.name; s="$($g.vramMB)MB VRAM"; r=$jsonPath
+  foreach ($g in $data.gpu) {
+    if ($g.vramMB -gt 0) {
+      $assets += @{id=[guid]::NewGuid().ToString("N").Substring(0,8);hostname=$hostname;scanTime=$ts;category="gpu";itemName=$g.name;manufacturer="";model=$g.name;spec="$($g.vramMB)MB";createdAt=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')}
     }
   }
 
   # 网卡
-  foreach($n in $data.network){
-    ExecSQL $conn $tx "INSERT INTO assets(hostname,scanTime,category,itemName,manufacturer,model,spec,rawJson) VALUES(@h,@t,@c,@n,@m,@d,@s,@r)" @{
-      h=$sys.hostname; t=$data.scanTime; c="network"; n=$n.name; m=$n.manufacturer
-      d=$n.name; s="MAC:$($n.mac) $($n.speedMbps)Mbps"; r=$jsonPath
-    }
+  foreach ($n in $data.network) {
+    $assets += @{id=[guid]::NewGuid().ToString("N").Substring(0,8);hostname=$hostname;scanTime=$ts;category="network";itemName=$n.name;manufacturer="";model=$n.name;spec="MAC:$($n.mac)";createdAt=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')}
   }
 
-  $tx.Commit(); $conn.Close()
-  Write-Host "OK: 资产已入库 -> $DbPath"
+  # 主板
+  $assets += @{id=[guid]::NewGuid().ToString("N").Substring(0,8);hostname=$hostname;scanTime=$ts;category="motherboard";itemName="主板";manufacturer=$data.motherboard.manufacturer;model=$data.motherboard.product;spec="";createdAt=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')}
+
+  Save-Assets $assets
+  Write-Host "OK: $($assets.Count) 条资产已入库 -> $DbPath"
 }
 
-function ExecSQL($conn,$tx,$sql,$params){
-  $cmd = $conn.CreateCommand(); $cmd.Transaction = $tx; $cmd.CommandText = $sql
-  foreach($k in $params.Keys){$p=$cmd.Parameters.Add("@$k",[System.Data.DbType]::String);$p.Value=$params[$k]}
-  $cmd.ExecuteNonQuery()|Out-Null
-}
+if ($ImportJson) { Import-Asset $ImportJson }
 
-function Export-CSV($path){
-  $conn = Get-DbConn; $conn.Open()
-  $cmd = $conn.CreateCommand(); $cmd.CommandText = "SELECT * FROM assets ORDER BY hostname, category"
-  $reader = $cmd.ExecuteReader()
-  $dt = New-Object System.Data.DataTable; $dt.Load($reader)
-  $csv = @()
-  $cols = @("hostname","scanTime","category","subCategory","itemName","manufacturer","model","serialNumber","spec","status")
-  $csv += ($cols -join ",")
-  foreach($row in $dt.Rows){
-    $line = ($cols | ForEach-Object { '"'+$row.$_.ToString().Replace('"','""')+'"' }) -join ","
-    $csv += $line
+if ($ListAssets) {
+  $assets = @(Get-Assets)
+  if ($assets.Count -eq 0) { Write-Host "(空)"; return }
+  Write-Host "ID`t主机名`t类别`t项目`t厂商`t型号`t规格"
+  foreach ($a in $assets) {
+    Write-Host "$($a.id)`t$($a.hostname)`t$($a.category)`t$($a.itemName)`t$($a.manufacturer)`t$($a.model)`t$($a.spec)"
   }
-  $conn.Close()
-  [IO.File]::WriteAllText($path, ($csv -join "`r`n"), [Text.Encoding]::UTF8)
-  Write-Host "OK: $path"
+  Write-Host "`n总计: $($assets.Count) 条资产"
 }
 
-# 主入口
-if($ImportJson){Import-Asset $ImportJson}
-if($ListAssets){
-  Init-DB
-  $conn = Get-DbConn; $conn.Open()
-  $cmd = $conn.CreateCommand(); $cmd.CommandText = "SELECT hostname, category, itemName, manufacturer, model, spec FROM assets ORDER BY hostname, category"
-  $r = $cmd.ExecuteReader()
-  Write-Host "主机名`t类别`t项目`t厂商`t型号`t规格"
-  while($r.Read()){Write-Host "$($r['hostname'])`t$($r['category'])`t$($r['itemName'])`t$($r['manufacturer'])`t$($r['model'])`t$($r['spec'])"}
-  $conn.Close()
+if ($ExportFormat -eq "csv" -and $ExportPath) {
+  $assets = @(Get-Assets)
+  $csv = "id,hostname,category,itemName,manufacturer,model,spec,createdAt`r`n"
+  foreach ($a in $assets) {
+    $csv += "$($a.id),$($a.hostname),$($a.category),$($a.itemName),$($a.manufacturer),$($a.model),$($a.spec),$($a.createdAt)`r`n"
+  }
+  [IO.File]::WriteAllText($ExportPath, $csv, [Text.Encoding]::UTF8)
+  Write-Host "OK: $ExportPath ($($assets.Count) 条)"
 }
-if($ExportFormat -eq "csv" -and $ExportPath){Export-CSV $ExportPath}
