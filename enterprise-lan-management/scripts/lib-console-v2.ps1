@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS  金网通 · 集中管理控制台 API 扩展 V2
 .DESCRIPTION
   为 console.ps1 添加资产管理和价格对比 API 路由。

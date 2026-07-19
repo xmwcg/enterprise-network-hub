@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS  集中管理控制台（M3）：本地 Web 服务 + 任务队列 + 设备注册
 .DESCRIPTION
   在管理机/文件服务器上以管理员运行。启动后访问 http://localhost:<Port>/ 打开仪表盘。

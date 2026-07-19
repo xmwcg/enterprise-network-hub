@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS  金网通统一授权核心（试用计时 + 版本门控），供脚本/Web/安装包三方案共用
 .DESCRIPTION
   在 license.ps1（机器指纹 + license.json HMAC 签名 + Test-License）之上扩展：

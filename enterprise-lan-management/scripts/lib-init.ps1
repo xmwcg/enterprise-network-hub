@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS  统一初始化：编码 + 控制台 + 自动提权（所有入口脚本请先 dot-source 本文件）
 .DESCRIPTION
   · 统一文件写入编码为 UTF-8（带 BOM），彻底杜绝 PowerShell 5.1 默认 ANSI 读取导致的中文乱码；

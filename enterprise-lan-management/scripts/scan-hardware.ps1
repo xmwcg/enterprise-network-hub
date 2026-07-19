@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS  金网通 · 完整硬件与系统信息扫描引擎 V2
 .DESCRIPTION
   PS 2.0+ 全兼容。采集：CPU/主板/内存/硬盘/GPU/网卡/显示器/BIOS/OS/软件等。

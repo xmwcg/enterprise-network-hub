@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS  C盘瘦身 / 系统垃圾清理核心库（仅删系统产生的垃圾，不碰用户/企业生产数据）
 .DESCRIPTION
   本库被 diskclean.ps1（单机图形/CLI 入口）与 agent.ps1（M3 控制台批量下发）共用。

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     金网通 License 离线激活模块（零服务器成本）
 .DESCRIPTION

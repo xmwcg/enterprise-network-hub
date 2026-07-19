@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS  代码签名工具（M1）：用 Authenticode 证书对 scripts/*.ps1 批量签名。
 .DESCRIPTION
   对仓库内全部 .ps1 进行 Authenticode 签名，签名后即可用 lib-init 的
