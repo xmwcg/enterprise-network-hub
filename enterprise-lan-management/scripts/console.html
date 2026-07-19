@@ -1,116 +1,211 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>金奕鸣 · 局域网集中管理控制台</title>
+<title>金网通 · 集中管理控制台</title>
 <style>
-  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --txt:#e2e8f0; --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background:var(--bg); color:var(--txt); }
-  header { padding:14px 20px; background:#0b1220; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; }
-  header h1 { font-size:16px; margin:0; }
-  .wrap { padding:18px; display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
-  .card h2 { font-size:14px; margin:0 0 10px; color:var(--accent); }
-  table { width:100%; border-collapse:collapse; font-size:12px; }
-  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
-  th { color:#94a3b8; font-weight:600; }
-  .tag { padding:1px 8px; border-radius:10px; font-size:11px; }
-  .ok { background:rgba(34,197,94,.15); color:var(--ok); }
-  .warn { background:rgba(245,158,11,.15); color:var(--warn); }
-  .bad { background:rgba(239,68,68,.15); color:var(--bad); }
-  input,select,textarea,button { font-family:inherit; font-size:13px; border-radius:6px; border:1px solid var(--line); background:#0b1220; color:var(--txt); padding:7px 9px; }
-  input,select,textarea { width:100%; margin-bottom:8px; }
-  button { background:var(--accent); color:#06283d; border:none; font-weight:600; cursor:pointer; }
-  button:hover { opacity:.9; }
-  .full { grid-column: 1 / -1; }
-  #log { font-size:12px; color:#94a3b8; max-height:160px; overflow:auto; }
-  .muted { color:#64748b; font-size:12px; }
+:root {
+  --bg: #0a0e17; --panel: #111827; --panel2: #1a2235; --line: #1e2d45;
+  --text: #e6e9ef; --sub: #8b9ab8; --accent: #FF5C1A; --accent2: #ff7a45;
+  --ok: #10b981; --warn: #f59e0b; --err: #ef4444;
+  --radius: 10px; --grad: linear-gradient(135deg,#0a0e17 0%,#0f1629 40%,#1a0f18 100%);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--grad);color:var(--text);font-family:"Microsoft YaHei","PingFang SC",sans-serif;min-height:100vh}
+.header{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 24px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+.header h1{font-size:18px;font-weight:600}
+.header .badge{font-size:12px;padding:4px 10px;border-radius:12px;background:var(--accent);color:#fff}
+.nav{display:flex;gap:4px;padding:0 24px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.nav a{padding:10px 18px;color:var(--sub);text-decoration:none;font-size:13px;border-bottom:2px solid transparent;transition:all 0.2s}
+.nav a:hover,.nav a.active{color:var(--accent2);border-bottom-color:var(--accent)}
+.main{padding:24px;max-width:1400px;margin:0 auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+.card-title{font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
+.card-value{font-size:28px;font-weight:700;color:var(--text)}
+.card-value.green{color:var(--ok)}
+.card-value.orange{color:var(--warn)}
+.card-value.red{color:var(--err)}
+table{width:100%;border-collapse:collapse;margin-top:24px}
+th{text-align:left;padding:10px 14px;font-size:12px;color:var(--sub);border-bottom:1px solid var(--line);text-transform:uppercase}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04)}
+tr:hover{background:var(--panel2)}
+.tag{padding:3px 8px;border-radius:6px;font-size:11px}
+.tag-ok{background:rgba(16,185,129,0.15);color:var(--ok)}
+.tag-warn{background:rgba(245,158,11,0.15);color:var(--warn)}
+.tag-err{background:rgba(239,68,68,0.15);color:var(--err)}
+.loading{text-align:center;padding:40px;color:var(--sub)}
+.refresh-btn{padding:6px 14px;border-radius:var(--radius);background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:12px}
+.refresh-btn:hover{background:var(--accent2)}
+.section-title{font-size:16px;font-weight:600;margin:24px 0 12px}
+.empty{padding:40px;text-align:center;color:var(--sub)}
 </style>
 </head>
 <body>
-<header>
-  <h1>金奕鸣 · 局域网集中管理控制台</h1>
-  <span class="muted" id="status">连接中…</span>
-</header>
+<div class="header">
+  <h1>金网通 · 集中管理控制台 V2</h1>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span id="statusBadge" class="badge">加载中...</span>
+    <button class="refresh-btn" onclick="loadDashboard()">刷新</button>
+  </div>
+</div>
 
-<div class="wrap">
-  <div class="card">
-    <h2>① 管理员令牌</h2>
-    <input id="token" placeholder="粘贴控制台启动时打印的令牌" />
-    <p class="muted">创建任务 / 注册设备需携带此令牌。控制台启动时在 PowerShell 窗口打印。</p>
+<div class="nav">
+  <a href="#" class="active" onclick="showTab('dashboard')">仪表盘</a>
+  <a href="#" onclick="showTab('assets')">资产管理</a>
+  <a href="#" onclick="showTab('devices')">设备列表</a>
+  <a href="#" onclick="showTab('tasks')">任务队列</a>
+  <a href="#" onclick="showTab('price')">价格对比</a>
+</div>
+
+<div class="main">
+  <!-- 仪表盘 -->
+  <div id="tab-dashboard">
+    <div class="cards" id="dashCards"></div>
+    <div class="section-title">最近任务</div>
+    <div id="dashTasks"><div class="loading">加载中...</div></div>
   </div>
 
-  <div class="card">
-    <h2>② 在线设备（agent 注册）</h2>
-    <table><thead><tr><th>主机</th><th>IP</th><th>系统</th><th>最近心跳</th></tr></thead>
-      <tbody id="devBody"><tr><td colspan="4" class="muted">加载中…</td></tr></tbody></table>
+  <!-- 资产管理 -->
+  <div id="tab-assets" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="section-title" style="margin-top:0">全部资产</div>
+      <button class="refresh-btn" onclick="loadAssets()">刷新资产</button>
+    </div>
+    <div id="assetTable"><div class="loading">加载中...</div></div>
   </div>
 
-  <div class="card">
-    <h2>③ 资产清单（兼容 Mgmt$ 共享）</h2>
-    <table><thead><tr><th>主机</th><th>IP</th><th>系统</th><th>网关</th><th>文件服务器</th></tr></thead>
-      <tbody id="invBody"><tr><td colspan="5" class="muted">加载中…</td></tr></tbody></table>
+  <!-- 设备列表 -->
+  <div id="tab-devices" style="display:none">
+    <div class="section-title" style="margin-top:0">已注册设备</div>
+    <div id="deviceTable"><div class="loading">加载中...</div></div>
   </div>
 
-  <div class="card">
-    <h2>④ 新建任务（下发到终端 agent）</h2>
-    <select id="taskType">
-      <option value="command">command（本地执行 PowerShell 命令）</option>
-      <option value="netpolicy">netpolicy（上网策略 allow/deny）</option>
-      <option value="netcheck">netcheck（网络体检）</option>
-      <option value="diskclean">diskclean（C盘瘦身/系统垃圾清理）</option>
-    </select>
-    <textarea id="taskPayload" rows="4" placeholder='command: {"command":"Get-Service WinRM | Select Name,Status | ConvertTo-Json"}'></textarea>
-    <input id="taskTargets" placeholder="目标设备ID，逗号分隔；留空=全部已注册设备" />
-    <button onclick="createTask()">创建并下发任务</button>
-    <p class="muted">示例 payload（netpolicy）：{"policy":"deny","hardcut":false}</p>
-    <p class="muted">示例 payload（diskclean）：{"backupDrive":"D:","categories":["updcache","systmp","recycle","browsercache","wer","thumbcache","deliveryopt","winsxs"],"advanced":false}　⚠ 终端仅生成预览，需本地运行 diskclean.ps1 确认后才删除</p>
+  <!-- 任务队列 -->
+  <div id="tab-tasks" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="section-title" style="margin-top:0">任务队列</div>
+      <button class="refresh-btn" onclick="loadTasks()">刷新</button>
+    </div>
+    <div id="taskTable"><div class="loading">加载中...</div></div>
   </div>
 
-  <div class="card full">
-    <h2>⑤ 任务队列与结果</h2>
-    <table><thead><tr><th>任务ID</th><th>类型</th><th>状态</th><th>目标数</th><th>创建时间</th></tr></thead>
-      <tbody id="taskBody"><tr><td colspan="5" class="muted">加载中…</td></tr></tbody></table>
-    <div id="log"></div>
+  <!-- 价格对比 -->
+  <div id="tab-price" style="display:none">
+    <div class="section-title" style="margin-top:0">硬件价格对比</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input id="priceKeyword" placeholder="输入硬件名称搜索..." style="flex:1;padding:8px 12px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:13px">
+      <button class="refresh-btn" onclick="searchPrice()">搜索</button>
+    </div>
+    <div id="priceResult"><div class="empty">输入关键词搜索京东商品价格</div></div>
   </div>
 </div>
 
 <script>
-const API = location.origin + '/api';
-function hdr() { return { 'X-Console-Token': document.getElementById('token').value }; }
-function log(m){ const el=document.getElementById('log'); el.innerHTML += m+'<br>'; el.scrollTop = el.scrollHeight; }
-function st(ts){ const s=document.getElementById('status'); if(ts){s.textContent='已连接 · '+ts;} else {s.textContent='未连接';} }
-async function getj(path){ const r=await fetch(API+path); return r.json(); }
+const API = window.location.origin;
+const TOKEN = localStorage.getItem("token") || "";
 
-async function refresh(){
-  try { const s=await getj('/status'); st('服务器 '+s.fileServer+' · 设备 '+s.devices+' · 任务 '+s.tasks); }
-  catch(e){ st('未连接'); return; }
-  // devices
-  const devs=await getj('/devices'); const db=document.getElementById('devBody');
-  db.innerHTML = devs.length? devs.map(d=>`<tr><td>${d.ComputerName||d.Id}</td><td>${d.IP||'-'}</td><td>${d.Edition||d.OS||'-'}</td><td>${d.LastSeen||'-'}</td></tr>`).join('') : '<tr><td colspan="4" class="muted">暂无注册设备，请在终端运行 agent.ps1</td></tr>';
-  // inventory
-  const inv=await getj('/inventory'); const ib=document.getElementById('invBody');
-  ib.innerHTML = inv.length? inv.map(h=>`<tr><td>${h.ComputerName||'-'}</td><td>${h.IP||'-'}</td><td>${h.OS||'-'}</td><td>${h.Gateway||'-'}</td><td>${h.IsFileServer?'是':'否'}</td></tr>`).join('') : '<tr><td colspan="5" class="muted">暂无共享资产（运行 deploy.ps1 后会出现）</td></tr>';
-  // tasks
-  const tasks=await getj('/tasks'); const tb=document.getElementById('taskBody');
-  tb.innerHTML = tasks.length? tasks.map(t=>`<tr><td>${t.Id}</td><td>${t.Type}</td><td><span class="tag ${t.Status==='completed'?'ok':t.Status==='active'?'warn':'bad'}">${t.Status}</span></td><td>${t.Items?t.Items.length:0}</td><td>${t.Created}</td></tr>`).join('') : '<tr><td colspan="5" class="muted">暂无任务</td></tr>';
-}
-async function createTask(){
-  const type=document.getElementById('taskType').value;
-  let payload;
-  try { payload=JSON.parse(document.getElementById('taskPayload').value||'{}'); }
-  catch(e){ alert('Payload 不是合法 JSON：'+e.message); return; }
-  const tg=document.getElementById('taskTargets').value.split(',').map(s=>s.trim()).filter(Boolean);
-  const body=JSON.stringify({ Type:type, Payload:payload, Targets: tg });
+async function api(path) {
   try {
-    const r=await fetch(API+'/tasks',{method:'POST',headers:hdr(),body});
-    if(r.status===401){ alert('令牌无效'); return; }
-    const t=await r.json(); log('已创建任务 '+t.Id+'（状态：'+t.Status+'）'); refresh();
-  } catch(e){ alert('创建失败：'+e.message); }
+    const res = await fetch(API + path, { headers: { Authorization: "Bearer " + TOKEN } });
+    return await res.json();
+  } catch(e) { return { error: e.message }; }
 }
-refresh(); setInterval(refresh, 8000);
+
+function showTab(name) {
+  document.querySelectorAll("[id^='tab-']").forEach(e => e.style.display = "none");
+  document.querySelectorAll(".nav a").forEach(a => a.classList.remove("active"));
+  document.getElementById("tab-" + name).style.display = "";
+  event.target.classList.add("active");
+  if (name === "assets") loadAssets();
+  if (name === "devices") loadDevices();
+  if (name === "tasks") loadTasks();
+}
+
+async function loadDashboard() {
+  const status = await api("/api/status");
+  document.getElementById("statusBadge").textContent = status.fileServer || "本地模式";
+
+  const dash = await api("/api/v2/dashboard");
+  if (dash.error) { document.getElementById("dashCards").innerHTML = '<div class="empty">V2 API 未启用，请更新 console.ps1</div>'; return; }
+
+  document.getElementById("dashCards").innerHTML = `
+    <div class="card"><div class="card-title">设备数</div><div class="card-value green">${dash.deviceCount||0}</div></div>
+    <div class="card"><div class="card-title">资产总数</div><div class="card-value">${dash.assetCount||0}</div></div>
+    <div class="card"><div class="card-title">CPU核心</div><div class="card-value">${dash.cpuCount||0}</div></div>
+    <div class="card"><div class="card-title">总内存</div><div class="card-value green">${dash.totalMemGB||0} GB</div></div>
+    <div class="card"><div class="card-title">总存储</div><div class="card-value">${dash.totalDiskGB||0} GB</div></div>
+    <div class="card"><div class="card-title">GPU数</div><div class="card-value">${dash.gpuCount||0}</div></div>
+    <div class="card"><div class="card-title">任务</div><div class="card-value">${dash.taskCount||0}</div></div>
+    <div class="card"><div class="card-title">待执行</div><div class="card-value orange">${dash.pendingTasks||0}</div></div>
+    <div class="card"><div class="card-title">已完成</div><div class="card-value green">${dash.completedTasks||0}</div></div>
+    <div class="card"><div class="card-title">失败</div><div class="card-value red">${dash.failedTasks||0}</div></div>
+  `;
+
+  const tasks = await api("/api/tasks");
+  const html = tasks.length > 0 ? `<table><tr><th>ID</th><th>类型</th><th>状态</th><th>目标</th><th>创建时间</th></tr>` + tasks.slice(0,5).map(t => `
+    <tr><td>${t.id}</td><td>${t.type}</td><td><span class="tag tag-${t.status==='done'?'ok':t.status==='failed'?'err':'warn'}">${t.status}</span></td><td>${(t.targets||[]).join(',')}</td><td>${t.createdAt}</td></tr>
+  `).join("") + "</table>" : '<div class="empty">暂无任务</div>';
+  document.getElementById("dashTasks").innerHTML = html;
+}
+
+async function loadAssets() {
+  const assets = await api("/api/v2/assets");
+  if (!Array.isArray(assets)) { document.getElementById("assetTable").innerHTML = '<div class="empty">无资产数据</div>'; return; }
+  document.getElementById("assetTable").innerHTML = `
+    <table><tr><th>主机名</th><th>类别</th><th>项目</th><th>厂商/型号</th><th>规格</th><th>时间</th></tr>
+    ${assets.map(a => `<tr><td>${a.hostname}</td><td>${a.category}</td><td>${a.itemName}</td><td>${a.manufacturer||''} ${a.model||''}</td><td>${a.spec||''}</td><td>${(a.createdAt||'').slice(0,10)}</td></tr>`).join("")}
+    </table>
+  `;
+}
+
+async function loadDevices() {
+  const devices = await api("/api/devices");
+  if (!Array.isArray(devices) || devices.length === 0) {
+    document.getElementById("deviceTable").innerHTML = '<div class="empty">暂无注册设备</div>'; return;
+  }
+  document.getElementById("deviceTable").innerHTML = `
+    <table><tr><th>设备名</th><th>IP</th><th>系统</th><th>状态</th><th>最后心跳</th></tr>
+    ${devices.map(d => `<tr><td>${d.hostname||d.ComputerName||d.id}</td><td>${d.ip||d.IP||'-'}</td><td>${d.os||d.OS||'-'}</td><td><span class="tag tag-ok">在线</span></td><td>${d.lastSeen||d.lastHeartbeat||'-'}</td></tr>`).join("")}
+    </table>
+  `;
+}
+
+async function loadTasks() {
+  const tasks = await api("/api/tasks");
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    document.getElementById("taskTable").innerHTML = '<div class="empty">暂无任务</div>'; return;
+  }
+  document.getElementById("taskTable").innerHTML = `
+    <table><tr><th>ID</th><th>类型</th><th>状态</th><th>目标</th><th>创建时间</th></tr>
+    ${tasks.map(t => `<tr><td>${t.id}</td><td>${t.type}</td><td><span class="tag tag-${t.status==='done'?'ok':t.status==='failed'?'err':'warn'}">${t.status}</span></td><td>${(t.targets||[]).join(',')}</td><td>${t.createdAt||''}</td></tr>`).join("")}
+    </table>
+  `;
+}
+
+async function searchPrice() {
+  const kw = document.getElementById("priceKeyword").value;
+  if (!kw) return;
+  document.getElementById("priceResult").innerHTML = '<div class="loading">搜索中...</div>';
+  const result = await fetch(API + "/api/v2/price", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + TOKEN },
+    body: JSON.stringify({ keyword: kw, category: "hardware" })
+  }).then(r => r.json());
+  if (result.results && result.results.length > 0) {
+    document.getElementById("priceResult").innerHTML = `
+      <table><tr><th>商品名</th><th>价格</th><th>来源</th></tr>
+      ${result.results.map(r => `<tr><td>${r.name}</td><td>¥${r.price}</td><td>${r.source}</td></tr>`).join("")}
+      </table>
+    `;
+  } else {
+    document.getElementById("priceResult").innerHTML = '<div class="empty">未找到结果（需联网且京东页面可正常访问）</div>';
+  }
+}
+
+// 初始加载
+loadDashboard();
 </script>
 </body>
 </html>

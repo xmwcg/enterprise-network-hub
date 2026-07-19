@@ -87,7 +87,7 @@ try {
         try {
             switch -Regex ($path) {
                 '^/$' {
-                    $html = Get-Content (Join-Path $PSScriptRoot 'console.html') -Raw -Encoding UTF8
+                    $html = Get-Content (Join-Path $conf.RootDir 'dashboard.html') -Raw -Encoding UTF8
                     Send-Html $ctx $html
                     break
                 }
